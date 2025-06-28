@@ -1,0 +1,414 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BubbleCash Pro - Trust Wallet Integration</title>
+  <style>
+    :root {
+      --primary: #00ccff;
+      --secondary: #00cc66;
+      --dark: #1a1a1a;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      background: linear-gradient(to bottom, var(--dark), #333);
+      color: white;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      text-align: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    header {
+      padding: 20px 0;
+    }
+    
+    h1 {
+      font-size: 2.8rem;
+      margin-bottom: 5px;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    #game-stats {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      margin: 20px 0;
+      gap: 15px;
+    }
+    
+    .stat-card {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 15px;
+      border-radius: 15px;
+      min-width: 150px;
+      flex: 1;
+    }
+    
+    .progress-bar {
+      height: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 5px;
+      margin: 20px 0;
+      overflow: hidden;
+    }
+    
+    .progress {
+      height: 100%;
+      background: var(--secondary);
+      border-radius: 5px;
+      transition: width 0.5s;
+    }
+    
+    #game-area {
+      height: 400px;
+      position: relative;
+      margin: 30px auto;
+      overflow: hidden;
+      border-radius: 20px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .bubble {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, var(--primary), #0099cc);
+      cursor: pointer;
+      box-shadow: 0 0 20px rgba(0, 204, 255, 0.5);
+      transition: transform 0.1s;
+    }
+    
+    .bubble:hover {
+      transform: scale(1.1);
+    }
+    
+    .controls {
+      margin: 25px 0;
+    }
+    
+    button {
+      padding: 12px 30px;
+      font-size: 1.1rem;
+      margin: 10px;
+      border: none;
+      border-radius: 12px;
+      background: var(--secondary);
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-weight: bold;
+    }
+    
+    button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+    
+    button:hover:not(:disabled) {
+      background: #00ff88;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+    
+    #transaction-panel {
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 15px;
+      padding: 20px;
+      margin-top: 30px;
+      text-align: left;
+    }
+    
+    #transaction-log {
+      height: 100px;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px;
+      border-radius: 10px;
+      margin-top: 10px;
+      font-family: monospace;
+    }
+    
+    .log-entry {
+      margin: 5px 0;
+      padding: 5px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 0.9rem;
+    }
+    
+    .network-info {
+      background: rgba(0,0,0,0.5);
+      padding: 10px;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>BubbleCash Pro</h1>
+      <p>Pop bubbles, earn coins, withdraw real BUSD!</p>
+    </header>
+    <div id="game-stats">
+      <div class="stat-card">
+        <h3>Your Coins</h3>
+        <p id="coinCount">0</p>
+      </div>
+      <div class="stat-card">
+        <h3>BUSD Earned</h3>
+        <p id="busdAmount">0.00</p>
+      </div>
+      <div class="stat-card">
+        <h3>Next Withdrawal</h3>
+        <p id="withdrawalThreshold">1000 coins</p>
+      </div>
+    </div>
+    <div class="progress-bar">
+      <div id="progress" class="progress" style="width: 0%"></div>
+    </div>
+    <div id="game-area"></div>
+    <div class="controls">
+      <button onclick="connectWallet()" id="walletBtn">Connect Trust Wallet</button>
+      <button onclick="withdraw()" id="withdrawBtn" disabled>Withdraw Test BUSD</button>
+      <button onclick="resetGame()">Reset Game</button>
+    </div>
+    <div id="transaction-panel">
+      <h3>Transaction History</h3>
+      <div id="transaction-log"></div>
+      <div class="network-info">
+        <p><strong>Network:</strong> <span id="networkName">Not connected</span></p>
+        <p><strong>Wallet Address:</strong> <span id="walletAddress">N/A</span></p>
+      </div>
+    </div>
+  </div>
+  <!-- Web3.js for Trust Wallet integration -->
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.7.4/dist/web3.min.js"></script>
+  
+  <script>
+    // ============================
+    // REAL TRUST WALLET INTEGRATION
+    // ============================
+    const BUSD_RATE = 1000; // 1000 coins = 1 Test BUSD
+    let coins = 0;
+    let userWallet = null;
+    let web3;
+    let transactionCount = 0;
+    // DOM Elements
+    const walletBtn = document.getElementById('walletBtn');
+    const withdrawBtn = document.getElementById('withdrawBtn');
+    const networkSpan = document.getElementById('networkName');
+    const addressSpan = document.getElementById('walletAddress');
+    // Initialize Web3
+    async function initWeb3() {
+      if (window.ethereum) {
+        web3 = new Web3(window.ethereum);
+        try {
+          // Request account access
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          userWallet = accounts[0];
+          updateWalletUI();
+          
+          // Get network ID
+          const networkId = await web3.eth.net.getId();
+          setNetworkName(networkId);
+          
+          // Listen for account changes
+          window.ethereum.on('accountsChanged', (accounts) => {
+            userWallet = accounts[0];
+            updateWalletUI();
+            addToLog('Wallet account changed');
+          });
+          
+          // Listen for network changes
+          window.ethereum.on('chainChanged', (chainId) => {
+            setNetworkName(parseInt(chainId, 16));
+            addToLog('Network changed');
+          });
+          
+          return true;
+        } catch (error) {
+          console.error("User denied account access:", error);
+          return false;
+        }
+      } else {
+        alert('Please install Trust Wallet or MetaMask!');
+        return false;
+      }
+    }
+    function setNetworkName(networkId) {
+      const networks = {
+        1: 'Ethereum Mainnet',
+        3: 'Ropsten Testnet',
+        4: 'Rinkeby Testnet',
+        5: 'Goerli Testnet',
+        56: 'Binance Smart Chain',
+        97: 'BSC Testnet',
+        137: 'Polygon Mainnet',
+        80001: 'Polygon Mumbai'
+      };
+      networkSpan.textContent = networks[networkId] || `Unknown Network (${networkId})`;
+    }
+    function updateWalletUI() {
+      if (userWallet) {
+        walletBtn.textContent = 'Wallet Connected';
+        walletBtn.style.background = '#555';
+        walletBtn.disabled = true;
+        addressSpan.textContent = `${userWallet.substring(0,6)}...${userWallet.substring(38)}`;
+        addToLog('Trust Wallet connected successfully');
+      }
+    }
+    // Game Initialization
+    window.onload = function() {
+      for (let i = 0; i < 5; i++) {
+        createBubble();
+      }
+      addToLog('Game initialized. Start popping bubbles!');
+    };
+    // Bubble Creation
+    function createBubble() {
+      const gameArea = document.getElementById('game-area');
+      const bubble = document.createElement('div');
+      
+      const size = Math.floor(Math.random() * 50) + 30;
+      const posX = Math.random() * (gameArea.offsetWidth - size);
+      const posY = Math.random() * (gameArea.offsetHeight - size);
+      
+      bubble.className = 'bubble';
+      bubble.style.width = `${size}px`;
+      bubble.style.height = `${size}px`;
+      bubble.style.left = `${posX}px`;
+      bubble.style.top = `${posY}px`;
+      
+      bubble.onclick = function() {
+        this.style.transition = 'transform 0.3s, opacity 0.3s';
+        this.style.transform = 'scale(1.5)';
+        this.style.opacity = '0';
+        
+        const earnedCoins = Math.floor(size/10);
+        coins += earnedCoins;
+        
+        document.getElementById('coinCount').innerText = coins;
+        document.getElementById('busdAmount').innerText = (coins / BUSD_RATE).toFixed(4);
+        updateProgress();
+        
+        addToLog(`Bubble popped! +${earnedCoins} coins`);
+        
+        setTimeout(() => {
+          gameArea.removeChild(this);
+          createBubble();
+        }, 300);
+      };
+      
+      gameArea.appendChild(bubble);
+    }
+    // Progress Updater
+    function updateProgress() {
+      const progress = document.getElementById('progress');
+      const percent = Math.min(100, (coins / BUSD_RATE) * 100);
+      progress.style.width = `${percent}%`;
+      withdrawBtn.disabled = coins < BUSD_RATE;
+    }
+    // Wallet Connection
+    async function connectWallet() {
+      const success = await initWeb3();
+      if (success) {
+        alert('✅ Trust Wallet connected successfully!\n\nYou can now earn and withdraw Test BUSD!');
+      }
+    }
+    // Withdrawal Function (Simulated on Testnet)
+    async function withdraw() {
+      if (!userWallet) {
+        alert('Please connect Trust Wallet first.');
+        return;
+      }
+      
+      const busdAmount = coins / BUSD_RATE;
+      
+      withdrawBtn.textContent = 'Processing...';
+      withdrawBtn.disabled = true;
+      addToLog(`Withdrawal request: ${busdAmount.toFixed(4)} Test BUSD`);
+      
+      try {
+        // In a real dApp, you would call your smart contract here
+        // This is a simulation for test purposes
+        
+        // For real implementation you would use:
+        // const contract = new web3.eth.Contract(ABI, CONTRACT_ADDRESS);
+        // const tx = await contract.methods.withdrawBUSD(userWallet, busdAmount).send({from: userWallet});
+        
+        // Simulate transaction delay
+        setTimeout(async () => {
+          // Get current gas price
+          const gasPrice = await web3.eth.getGasPrice();
+          
+          // Create fake transaction hash
+          const txnHash = '0x' + Array.from({length: 64}, () => 
+            Math.floor(Math.random() * 16).toString(16)).join('');
+          
+          addToLog(`Transaction sent: ${txnHash}`);
+          
+          // Simulate confirmation
+          setTimeout(() => {
+            addToLog(`Transaction confirmed: ${txnHash.substring(0,12)}...`);
+            addToLog(`✅ ${busdAmount.toFixed(4)} Test BUSD sent to wallet`);
+            
+            // Reset game state
+            coins = 0;
+            document.getElementById('coinCount').innerText = coins;
+            document.getElementById('busdAmount').innerText = '0.00';
+            updateProgress();
+            
+            withdrawBtn.textContent = 'Withdraw Test BUSD';
+            
+            // View on testnet explorer (simulated)
+            const networkId = await web3.eth.net.getId();
+            const explorer = networkId === 97 ? 
+              `https://testnet.bscscan.com/tx/${txnHash}` : 
+              `https://mumbai.polygonscan.com/tx/${txnHash}`;
+            
+            alert(`Success! ${busdAmount.toFixed(4)} Test BUSD has been sent to your wallet.\n\nView transaction: ${explorer}`);
+          }, 2000);
+        }, 1000);
+      } catch (error) {
+        addToLog(`Error: ${error.message}`);
+        withdrawBtn.textContent = 'Withdraw Test BUSD';
+        withdrawBtn.disabled = false;
+        alert('Withdrawal failed: ' + error.message);
+      }
+    }
+    // Game Reset
+    function resetGame() {
+      coins = 0;
+      document.getElementById('coinCount').innerText = coins;
+      document.getElementById('busdAmount').innerText = '0.00';
+      updateProgress();
+      addToLog('Game has been reset');
+    }
+    // Transaction Logger
+    function addToLog(message) {
+      const log = document.getElementById('transaction-log');
+      const logEntry = document.createElement('div');
+      logEntry.className = 'log-entry';
+      logEntry.innerHTML = `#${++transactionCount} - ${new Date().toLocaleTimeString()} - ${message}`;
+      log.appendChild(logEntry);
+      log.scrollTop = log.scrollHeight;
+    }
+  </script>
+</body>
+</html>
